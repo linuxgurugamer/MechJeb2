@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using KSP.UI.Screens;
@@ -8,13 +8,13 @@ namespace MuMech
 {
     public class MechJebModuleThrustController : ComputerModule
     {
-		public enum DifferentialThrottleStatus
-		{
-			Success,
-			AllEnginesOff,
-			MoreEnginesRequired,
-			SolverFailed
-		}
+        public enum DifferentialThrottleStatus
+        {
+            Success,
+            AllEnginesOff,
+            MoreEnginesRequired,
+            SolverFailed
+        }
 
         public MechJebModuleThrustController(MechJebCore core)
             : base(core)
@@ -28,7 +28,7 @@ namespace MuMech
 
 
         // The Terminal Velocity limiter is removed to not have to deal with users who
-        // think that seeing the aerodynamic FX means they reached it. 
+        // think that seeing the aerodynamic FX means they reached it.
         // And it s really high since 1.0.x anyway so the Dynamic Pressure limiter is better now
         //[Persistent(pass = (int)Pass.Global)]
         public bool limitToTerminalVelocity = false;
@@ -62,12 +62,12 @@ namespace MuMech
         [Persistent(pass = (int)Pass.Global)]
         public bool limitToPreventOverheats = false;
 
-        [GeneralInfoItem("Prevent overheats", InfoItem.Category.Thrust)]
+        [GeneralInfoItem("Prevent engine overheats", InfoItem.Category.Thrust)]
         public void LimitToPreventOverheatsInfoItem()
         {
             GUIStyle s = new GUIStyle(GUI.skin.toggle);
             if (limiter == LimitMode.Temperature) s.onHover.textColor = s.onNormal.textColor = Color.green;
-            limitToPreventOverheats = GUILayout.Toggle(limitToPreventOverheats, "Prevent overheats", s);
+            limitToPreventOverheats = GUILayout.Toggle(limitToPreventOverheats, "Prevent engine overheats", s);
         }
 
         [ToggleInfoItem("Smooth throttle", InfoItem.Category.Thrust)]
@@ -89,7 +89,7 @@ namespace MuMech
         }
 
         [Persistent(pass = (int)Pass.Global)]
-        public bool limitToPreventUnstableIgnition = true;
+        public bool limitToPreventUnstableIgnition = false;
 
         [GeneralInfoItem("Prevent unstable ignition", InfoItem.Category.Thrust)]
         public void LimitToPreventUnstableIgnitionInfoItem()
@@ -97,6 +97,17 @@ namespace MuMech
             GUIStyle s = new GUIStyle(GUI.skin.toggle);
             if (limiter == LimitMode.UnstableIgnition) s.onHover.textColor = s.onNormal.textColor = Color.green;
             limitToPreventUnstableIgnition = GUILayout.Toggle(limitToPreventUnstableIgnition, "Prevent unstable ignition", s);
+        }
+
+        [Persistent(pass = (int)Pass.Global)]
+        public bool autoRCSUllaging = true;
+
+        [GeneralInfoItem("Use RCS to ullage", InfoItem.Category.Thrust)]
+        public void AutoRCsUllageInfoItem()
+        {
+            GUIStyle s = new GUIStyle(GUI.skin.toggle);
+            if (limiter == LimitMode.AutoRCSUllage) s.onHover.textColor = s.onNormal.textColor = Color.green;
+            autoRCSUllaging = GUILayout.Toggle(autoRCSUllaging, "Use RCS to ullage", s);
         }
 
         // 5% safety margin on flameouts
@@ -112,8 +123,6 @@ namespace MuMech
 
         [Persistent(pass = (int)Pass.Global)]
         public EditableDouble maxAcceleration = 40;
-
-		public double maxAccelerationLimit = 1;
 
         [GeneralInfoItem("Limit acceleration", InfoItem.Category.Thrust)]
         public void LimitAccelerationInfoItem()
@@ -138,7 +147,7 @@ namespace MuMech
         {
             GUILayout.BeginHorizontal();
             GUIStyle s = new GUIStyle(GUI.skin.toggle);
-			if (limiter == LimitMode.Throttle) s.onHover.textColor = s.onNormal.textColor = maxThrottle > 0d ? Color.green : Color.red;
+            if (limiter == LimitMode.Throttle) s.onHover.textColor = s.onNormal.textColor = maxThrottle > 0d ? Color.green : Color.red;
             limitThrottle = GUILayout.Toggle(limitThrottle, "Limit throttle to", s, GUILayout.Width(110));
             maxThrottle.text = GUILayout.TextField(maxThrottle.text, GUILayout.Width(30));
             GUILayout.Label("%", GUILayout.ExpandWidth(false));
@@ -165,7 +174,7 @@ namespace MuMech
 
         [Persistent(pass = (int)Pass.Type)]
         public bool differentialThrottle = false;
-        
+
         [GeneralInfoItem("Differential throttle", InfoItem.Category.Thrust)]
         public void  DifferentialThrottle()
         {
@@ -176,14 +185,14 @@ namespace MuMech
                 s.onHover.textColor = s.onNormal.textColor = core.thrust.differentialThrottleSuccess == DifferentialThrottleStatus.Success ? Color.green : Color.yellow;
             }
             differentialThrottle = GUILayout.Toggle(differentialThrottle, "Differential throttle", s);
-            
+
             if (oldDifferentialThrottle && !core.thrust.differentialThrottle)
                 core.thrust.DisableDifferentialThrottle();
         }
 
         public Vector3d differentialThrottleDemandedTorque = new Vector3d();
 
-		public DifferentialThrottleStatus differentialThrottleSuccess = DifferentialThrottleStatus.Success;
+        public DifferentialThrottleStatus differentialThrottleSuccess = DifferentialThrottleStatus.Success;
 
         [Persistent(pass = (int)Pass.Local)]
         public bool electricThrottle = false;
@@ -215,7 +224,7 @@ namespace MuMech
             GUILayout.EndHorizontal();
         }
 
-        public enum LimitMode { None, TerminalVelocity, Temperature, Flameout, Acceleration, Throttle, DynamicPressure, MinThrottle, Electric, UnstableIgnition }
+        public enum LimitMode { None, TerminalVelocity, Temperature, Flameout, Acceleration, Throttle, DynamicPressure, MinThrottle, Electric, UnstableIgnition, AutoRCSUllage }
         public LimitMode limiter = LimitMode.None;
 
         public float targetThrottle = 0;
@@ -259,8 +268,11 @@ namespace MuMech
             }
         }
 
+        ScreenMessage preventingUnstableIgnitionsMessage;
+
         public override void OnStart(PartModule.StartState state)
         {
+            preventingUnstableIgnitionsMessage = new ScreenMessage("<color=orange>[MechJeb]: Killing throttle to prevent unstable ignition</color>", 2f, ScreenMessageStyle.UPPER_CENTER);
             pid = new PIDController(0.05, 0.000001, 0.05);
             users.Add(this);
 
@@ -275,9 +287,14 @@ namespace MuMech
             targetThrottle = 0;
             vessel.ctrlState.mainThrottle = 0;
             tmode = TMode.OFF;
+            SetFlightGlobals(0);
+        }
+
+        private void SetFlightGlobals(double throttle)
+        {
             if (FlightGlobals.ActiveVessel != null && vessel == FlightGlobals.ActiveVessel)
             {
-                FlightInputHandler.state.mainThrottle = 0; //so that the on-screen throttle gauge reflects the autopilot throttle
+                FlightInputHandler.state.mainThrottle = (float) throttle; //so that the on-screen throttle gauge reflects the autopilot throttle
             }
         }
 
@@ -291,6 +308,33 @@ namespace MuMech
             double desiredAcceleration = (dV - spooldownDV) / timeConstant;
 
             targetThrottle = Mathf.Clamp01((float)(desiredAcceleration / vesselState.maxThrustAccel));
+        }
+
+        /* the current throttle limit, this may include transient condition such as limiting to zero due to unstable propellants in RF */
+        public float throttleLimit { get; private set; }
+        /* the fixed throttle limit (i.e. user limited in the GUI), does not include transient conditions as limiting to zero due to unstable propellants in RF */
+        public float throttleFixedLimit { get; private set; }
+
+        /* This is an API for limits which are "temporary" or "conditional" (things like ullage status which will change very soon).
+           This will often be temporarily zero, which means the computed accelleration of the ship will be zero, which would cause
+           consumers (like the NodeExecutor) to compute infinite burntime, so this value should not be used by those consumers */
+        private void setTempLimit(float limit, LimitMode mode)
+        {
+            throttleLimit = limit;
+            limiter = mode;
+        }
+
+        /* This is an API for limits which are not temporary (like the throttle limit set in the GUI)
+           The throttleFixedLimit is what consumers like the NodeExecutor should use to compute acceleration and burntime.
+           This deliberately sets both values.  The actually applied throttle limit may be lower than thottleFixedLimit
+           (i.e. there may be a more limiting temp limit) */
+        private void setFixedLimit(float limit, LimitMode mode)
+        {
+            if (throttleLimit > limit) {
+                throttleLimit = limit;
+            }
+            throttleFixedLimit = limit;
+            limiter = mode;
         }
 
         public override void Drive(FlightCtrlState s)
@@ -352,7 +396,7 @@ namespace MuMech
                 if ((tmode == TMode.KEEP_ORBITAL && Vector3d.Dot(vesselState.forward, vesselState.orbitalVelocity) < 0) ||
                    (tmode == TMode.KEEP_SURFACE && Vector3d.Dot(vesselState.forward, vesselState.surfaceVelocity) < 0))
                 {
-                    //allow thrust to declerate 
+                    //allow thrust to declerate
                     t_err *= -1;
                 }
 
@@ -394,54 +438,62 @@ namespace MuMech
 
             // Only set throttle if a module need it. Otherwise let the user or other mods set it
             // There is always at least 1 user : the module itself (why ?)
-            if (users.Count() > 1)
+            if (users.Count > 1)
                 s.mainThrottle = targetThrottle;
-            
-            float throttleLimit = 1;
+
+            throttleLimit = 1;
+            throttleFixedLimit = 1;
 
             limiter = LimitMode.None;
 
             if (limitThrottle)
             {
-                if (maxThrottle < throttleLimit) limiter = LimitMode.Throttle;
-                throttleLimit = Mathf.Min(throttleLimit, (float)maxThrottle);
+                if (maxThrottle < throttleLimit)
+                {
+                    setFixedLimit((float)maxThrottle, LimitMode.Throttle);
+                }
             }
 
             if (limitToTerminalVelocity)
             {
                 float limit = TerminalVelocityThrottle();
-                if (limit < throttleLimit) limiter = LimitMode.TerminalVelocity;
-                throttleLimit = Mathf.Min(throttleLimit, limit);
+                if (limit < throttleLimit)
+                {
+                    setFixedLimit(limit, LimitMode.TerminalVelocity);
+                }
             }
 
             if (limitDynamicPressure)
             {
                 float limit = MaximumDynamicPressureThrottle();
-                if (limit < throttleLimit) limiter = LimitMode.DynamicPressure;
-                throttleLimit = Mathf.Min(throttleLimit, limit);
+                if (limit < throttleLimit)
+                {
+                    setFixedLimit(limit, LimitMode.DynamicPressure);
+                }
             }
 
             if (limitToPreventOverheats)
             {
                 float limit = (float)TemperatureSafetyThrottle();
-                if(limit < throttleLimit) limiter = LimitMode.Temperature;
-                throttleLimit = Mathf.Min(throttleLimit, limit);
+                if (limit < throttleLimit) {
+                    setFixedLimit(limit, LimitMode.Temperature);
+                }
             }
 
             if (limitAcceleration)
             {
                 float limit = AccelerationLimitedThrottle();
-                if(limit < throttleLimit) limiter = LimitMode.Acceleration;
-                throttleLimit = Mathf.Min(throttleLimit, limit);
-				// to provide an externally facing value. (used when ignition is unstable so we can approximate throttle limit when ignition stablizes)
-				maxAccelerationLimit = throttleLimit;
+                if (limit < throttleLimit) {
+                    setFixedLimit(limit, LimitMode.Acceleration);
+                }
             }
 
             if (electricThrottle && ElectricEngineRunning())
             {
                 float limit = ElectricThrottle();
-                if (limit < throttleLimit) limiter = LimitMode.Electric;
-                throttleLimit = Mathf.Min(throttleLimit, limit);
+                if (limit < throttleLimit) {
+                    setFixedLimit(limit, LimitMode.Electric);
+                }
             }
 
             if (limitToPreventFlameout)
@@ -449,35 +501,77 @@ namespace MuMech
                 // This clause benefits being last: if we don't need much air
                 // due to prior limits, we can close some intakes.
                 float limit = FlameoutSafetyThrottle();
-                if (limit < throttleLimit) limiter = LimitMode.Flameout;
-                throttleLimit = Mathf.Min(throttleLimit, limit);
+                if (limit < throttleLimit) {
+                    setFixedLimit(limit, LimitMode.Flameout);
+                }
             }
 
-            if (limiterMinThrottle  && limiter != LimitMode.None && throttleLimit < minThrottle)
+            // Any limiters which can limit to non-zero values must come before this, any
+            // limiters (like ullage) which enforce zero throttle should come after.  The
+            // minThrottle setting has authority over any other limiter that sets non-zero throttle.
+            if (limiterMinThrottle && limiter != LimitMode.None)
             {
-                limiter = LimitMode.MinThrottle;
-                throttleLimit = (float) minThrottle;
+                if (minThrottle > throttleFixedLimit)
+                {
+                    setFixedLimit((float) minThrottle, LimitMode.MinThrottle);
+                }
+                if (minThrottle > throttleLimit)
+                {
+                    setTempLimit((float) minThrottle, LimitMode.MinThrottle);
+                }
             }
 
-            // RealFuels ullage integration.  Stock always has stableUllage.
-            if (limitToPreventUnstableIgnition && !vesselState.stableUllage)
+            /* auto-RCS ullaging up to very stable */
+            if (autoRCSUllaging && s.mainThrottle > 0.0F && throttleLimit > 0.0F )
             {
-                if (( targetThrottle > 0.0F || s.mainThrottle > 0.0F ) && throttleLimit > 0.0F )
-				{
-                    // We want to fire the throttle, and nothing else is limiting us, but we have unstable ullage
-                    if (vessel.ActionGroups[KSPActionGroup.RCS] && s.Z == 0) {
-                        // RCS is on, so use it to ullage
+                if (vesselState.lowestUllage < VesselState.UllageState.VeryStable)
+                {
+                    Debug.Log("MechJeb RCS auto-ullaging: found state below very stable: " + vesselState.lowestUllage);
+                    if (vessel.hasEnabledRCSModules())
+                    {
+                        if (!vessel.ActionGroups[KSPActionGroup.RCS])
+                        {
+                            Debug.Log("MechJeb RCS auto-ullaging: enabling RCS action group for automatic ullaging");
+                            vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, true);
+                        }
+                        Debug.Log("MechJeb RCS auto-ullaging: firing RCS to stabilize ulllage");
+                        setTempLimit(0.0F, LimitMode.UnstableIgnition);
                         s.Z = -1.0F;
+                    } else {
+                        Debug.Log("MechJeb RCS auto-ullaging: vessel has no enabled/staged RCS modules");
                     }
                 }
-				limiter = LimitMode.UnstableIgnition;
-				throttleLimit = 0.0F;
             }
 
-            if (double.IsNaN(throttleLimit)) throttleLimit = 0;
+            /* prevent unstable ignitions */
+            if (limitToPreventUnstableIgnition && s.mainThrottle > 0.0F && throttleLimit > 0.0F )
+            {
+                if (vesselState.lowestUllage < VesselState.UllageState.Stable)
+                {
+                    ScreenMessages.PostScreenMessage(preventingUnstableIgnitionsMessage);
+                    Debug.Log("MechJeb Unstable Ignitions: preventing ignition in state: " + vesselState.lowestUllage);
+                    setTempLimit(0.0F, LimitMode.UnstableIgnition);
+                }
+            }
+
+            // we have to force the throttle here so that rssMode can work, otherwise we don't get our last throttle command
+            // back on the next tick after disabling.  we save this before applying the throttle limits so that we preserve
+            // the requested throttle, and not the limited throttle.
+            if (core.rssMode)
+            {
+                SetFlightGlobals(s.mainThrottle);
+            }
+
+            if (double.IsNaN(throttleLimit)) throttleLimit = 1.0F;
             throttleLimit = Mathf.Clamp01(throttleLimit);
 
+            /* we do not _apply_ the "fixed" limit, the actual throttleLimit should always be the more limited and lower one */
+            /* the purpose of the "fixed" limit is for external consumers like the node executor to consume */
+            if (double.IsNaN(throttleFixedLimit)) throttleFixedLimit = 1.0F;
+            throttleFixedLimit = Mathf.Clamp01(throttleFixedLimit);
+
             vesselState.throttleLimit = throttleLimit;
+            vesselState.throttleFixedLimit = throttleFixedLimit;
 
             if (s.mainThrottle < throttleLimit) limiter = LimitMode.None;
 
@@ -489,7 +583,9 @@ namespace MuMech
             }
 
             if (double.IsNaN(s.mainThrottle)) s.mainThrottle = 0;
+
             s.mainThrottle = Mathf.Clamp01(s.mainThrottle);
+
 
             if (s.Z == 0 && core.rcs.rcsThrottle && vesselState.rcsThrust) s.Z = -s.mainThrottle;
 
@@ -510,7 +606,7 @@ namespace MuMech
             }
             else
             {
-				differentialThrottleSuccess = DifferentialThrottleStatus.Success;
+                differentialThrottleSuccess = DifferentialThrottleStatus.Success;
             }
         }
 
@@ -707,7 +803,7 @@ namespace MuMech
         }
 
         bool ElectricEngineRunning() {
-            var activeEngines = vessel.parts.Where(p => p.inverseStage >= StageManager.CurrentStage && p.IsEngine() && !p.IsSepratron());
+            var activeEngines = vessel.parts.Where(p => p.inverseStage >= vessel.currentStage && p.IsEngine() && !p.IsSepratron());
             var engineModules = activeEngines.Select(p => p.Modules.OfType<ModuleEngines>().First(e => e.isEnabled));
 
             return engineModules.SelectMany(eng => eng.propellants).Any(p => p.id == PartResourceLibrary.ElectricityHashcode);
@@ -774,13 +870,13 @@ namespace MuMech
                 }
             }
         }
-        
+
         static void MaxThrust(double[] x, ref double func, double[] grad, object obj)
         {
             List<VesselState.EngineWrapper> el = (List<VesselState.EngineWrapper>)obj;
-        
+
             func = 0;
-        
+
             for (int i = 0, j = 0; j < el.Count; j++)
             {
                 VesselState.EngineWrapper e = el[j];
@@ -793,88 +889,88 @@ namespace MuMech
             }
         }
 
-		private DifferentialThrottleStatus ComputeDifferentialThrottle(Vector3d torque)
-		{
-			//var stopwatch = new Stopwatch();
-			//stopwatch.Start();
+        private DifferentialThrottleStatus ComputeDifferentialThrottle(Vector3d torque)
+        {
+            //var stopwatch = new Stopwatch();
+            //stopwatch.Start();
 
-			float mainThrottle = vessel.ctrlState.mainThrottle;
+            float mainThrottle = vessel.ctrlState.mainThrottle;
 
-			if (mainThrottle == 0)
-			{
-				torque = Vector3d.zero;
-				mainThrottle = 1;
-			}
+            if (mainThrottle == 0)
+            {
+                torque = Vector3d.zero;
+                mainThrottle = 1;
+            }
 
-			int nb_engines = vesselState.enginesWrappers.Count;
+            int nb_engines = vesselState.enginesWrappers.Count;
 
-			double torqueScale = 0;
-			double forceScale = 0;
-			Vector3d force = new Vector3d();
+            double torqueScale = 0;
+            double forceScale = 0;
+            Vector3d force = new Vector3d();
 
-			for (int i = 0; i < nb_engines; i++)
-			{
-				torque -= vesselState.enginesWrappers[i].constantTorque;
-				torqueScale += vesselState.enginesWrappers[i].maxVariableTorque.magnitude;
+            for (int i = 0; i < nb_engines; i++)
+            {
+                torque -= vesselState.enginesWrappers[i].constantTorque;
+                torqueScale += vesselState.enginesWrappers[i].maxVariableTorque.magnitude;
 
-				force += Vector3d.Dot(mainThrottle * vesselState.enginesWrappers[i].maxVariableForce, Vector3d.up) * Vector3d.up;
-				forceScale += vesselState.enginesWrappers[i].maxVariableForce.magnitude * 10;
-			}
+                force += Vector3d.Dot(mainThrottle * vesselState.enginesWrappers[i].maxVariableForce, Vector3d.up) * Vector3d.up;
+                forceScale += vesselState.enginesWrappers[i].maxVariableForce.magnitude * 10;
+            }
 
-			var engines = vesselState.enginesWrappers.Where(eng => !eng.engine.throttleLocked).ToList();
-			var n = engines.Count;
+            var engines = vesselState.enginesWrappers.Where(eng => !eng.engine.throttleLocked).ToList();
+            var n = engines.Count;
 
-			if (nb_engines == 0)
-				return DifferentialThrottleStatus.AllEnginesOff;
-			
-			if (nb_engines == 1 || n == 0)
-				return DifferentialThrottleStatus.MoreEnginesRequired;
-			
+            if (nb_engines == 0)
+                return DifferentialThrottleStatus.AllEnginesOff;
 
-			double[,] a = new double[n, n];
-			double[] b = new double[n];
-			double[] boundL = new double[n];
-			double[] boundU = new double[n];
+            if (nb_engines == 1 || n == 0)
+                return DifferentialThrottleStatus.MoreEnginesRequired;
 
-			for (int i = 0; i < n; i++)
-			{
-				for (int j = 0; j < n; j++)
-				{
-					a[i, j] = Vector3d.Dot(engines[i].maxVariableTorque, engines[j].maxVariableTorque) / (torqueScale * torqueScale)
-					          + Vector3d.Dot(engines[i].maxVariableForce, engines[j].maxVariableForce) / (forceScale * forceScale);
-				}
-				b[i] = -Vector3d.Dot(engines[i].maxVariableTorque, torque) / (torqueScale * torqueScale)
-				       - Vector3d.Dot(engines[i].maxVariableForce, force) / (forceScale * forceScale);
 
-				boundL[i] = 0;
-				boundU[i] = mainThrottle;
-			}
-			alglib.minqpstate state;
-			alglib.minqpcreate(n, out state);
-		    alglib.minqpsetquadraticterm(state, a);
-			alglib.minqpsetlinearterm(state, b);
-			alglib.minqpsetbc(state, boundL, boundU);
-			alglib.minqpsetalgobleic(state, 0.0, 0.0, 0.0, 0);
-			//var t1 = stopwatch.ElapsedMilliseconds;
-			alglib.minqpoptimize(state);
-			//var t2 = stopwatch.ElapsedMilliseconds;
-			double[] x;
-			alglib.minqpreport report;
-			alglib.minqpresults(state, out x, out report);
-			//var t3 = stopwatch.ElapsedMilliseconds;
-			//UnityEngine.Debug.LogFormat("[DiffThrottle] t1: {0}, t2: {1}, t3: {2}", t1, t2 - t1, t3 - t2);
+            double[,] a = new double[n, n];
+            double[] b = new double[n];
+            double[] boundL = new double[n];
+            double[] boundU = new double[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    a[i, j] = Vector3d.Dot(engines[i].maxVariableTorque, engines[j].maxVariableTorque) / (torqueScale * torqueScale)
+                              + Vector3d.Dot(engines[i].maxVariableForce, engines[j].maxVariableForce) / (forceScale * forceScale);
+                }
+                b[i] = -Vector3d.Dot(engines[i].maxVariableTorque, torque) / (torqueScale * torqueScale)
+                       - Vector3d.Dot(engines[i].maxVariableForce, force) / (forceScale * forceScale);
+
+                boundL[i] = 0;
+                boundU[i] = mainThrottle;
+            }
+            alglib.minqpstate state;
+            alglib.minqpcreate(n, out state);
+            alglib.minqpsetquadraticterm(state, a);
+            alglib.minqpsetlinearterm(state, b);
+            alglib.minqpsetbc(state, boundL, boundU);
+            alglib.minqpsetalgobleic(state, 0.0, 0.0, 0.0, 0);
+            //var t1 = stopwatch.ElapsedMilliseconds;
+            alglib.minqpoptimize(state);
+            //var t2 = stopwatch.ElapsedMilliseconds;
+            double[] x;
+            alglib.minqpreport report;
+            alglib.minqpresults(state, out x, out report);
+            //var t3 = stopwatch.ElapsedMilliseconds;
+            //UnityEngine.Debug.LogFormat("[DiffThrottle] t1: {0}, t2: {1}, t3: {2}", t1, t2 - t1, t3 - t2);
 
             if (x.Any(val => double.IsNaN(val)))
-				return DifferentialThrottleStatus.SolverFailed;
+                return DifferentialThrottleStatus.SolverFailed;
 
-			for (int i = 0; i < n; i++)
-			{
-				engines[i].thrustRatio = (float)(x[i] / mainThrottle);
-			}
+            for (int i = 0; i < n; i++)
+            {
+                engines[i].thrustRatio = (float)(x[i] / mainThrottle);
+            }
 
-			return DifferentialThrottleStatus.Success;
-		}
-        
+            return DifferentialThrottleStatus.Success;
+        }
+
         public void DisableDifferentialThrottle()
         {
             for (int i = 0; i < vessel.parts.Count; i++)

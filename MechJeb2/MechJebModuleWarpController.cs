@@ -24,6 +24,14 @@ namespace MuMech
         [Persistent(pass = (int)Pass.Global)]
         public bool activateSASOnWarp = true;
 
+        [Persistent(pass = (int)Pass.Global)]
+        public bool useQuickWarp = false;
+
+        public void useQuickWarpInfoItem()
+        {
+            useQuickWarp = GUILayout.Toggle(useQuickWarp, "Quick warp");
+        }
+
         [GeneralInfoItem("MJ Warp Control", InfoItem.Category.Misc)]
         public void ControlWarpButton()
         {
@@ -45,7 +53,7 @@ namespace MuMech
                 if (!vessel.LandedOrSplashed && TimeWarp.WarpMode == TimeWarp.Modes.HIGH && TimeWarp.CurrentRateIndex == TimeWarp.fetch.GetMaxRateForAltitude(vessel.altitude, vessel.mainBody))
                     return;
 
-                print("Warppause : lastAskedIndex=" + lastAskedIndex + " CurrentRateIndex=" + TimeWarp.CurrentRateIndex + " WarpMode=" + TimeWarp.WarpMode + " MaxCurrentRate=" + TimeWarp.fetch.GetMaxRateForAltitude(vessel.altitude, vessel.mainBody));
+                //print("Warppause : lastAskedIndex=" + lastAskedIndex + " CurrentRateIndex=" + TimeWarp.CurrentRateIndex + " WarpMode=" + TimeWarp.WarpMode + " MaxCurrentRate=" + TimeWarp.fetch.GetMaxRateForAltitude(vessel.altitude, vessel.mainBody));
                 WarpPaused = false;
                 //PauseWarp();
 
@@ -108,7 +116,26 @@ namespace MuMech
             if (maxRate < 0)
                 maxRate = TimeWarp.fetch.warpRates[TimeWarp.fetch.warpRates.Length - 1];
 
-            double desiredRate = 1.0 * (UT - (vesselState.time + Time.fixedDeltaTime * (float)TimeWarp.CurrentRateIndex));
+            double desiredRate;
+            if (useQuickWarp) {
+                desiredRate = 1;
+                if (orbit.patchEndTransition != Orbit.PatchTransitionType.FINAL && orbit.EndUT < UT) {
+                    for(int i=0; i<TimeWarp.fetch.warpRates.Length; i++){
+                        if (i * Time.fixedDeltaTime * TimeWarp.fetch.warpRates[i] <= orbit.EndUT - vesselState.time)
+                            desiredRate = TimeWarp.fetch.warpRates[i] + 0.1;
+                        else break;
+                    }
+                }
+                else{
+                    for(int i=0; i<TimeWarp.fetch.warpRates.Length; i++){
+                        if (i * Time.fixedDeltaTime * TimeWarp.fetch.warpRates[i] <= UT - vesselState.time)
+                            desiredRate = TimeWarp.fetch.warpRates[i] + 0.1;
+                        else break;
+                    }
+                }
+            }
+            else desiredRate = 1.0 * (UT - (vesselState.time + Time.fixedDeltaTime * (float)TimeWarp.CurrentRateIndex));
+            
             desiredRate = MuUtils.Clamp(desiredRate, 1, maxRate);
 
             if (!vessel.LandedOrSplashed &&
@@ -119,7 +146,7 @@ namespace MuMech
             }
             else
             {
-                WarpRegularAtRate((float)desiredRate);
+                WarpRegularAtRate((float)desiredRate,useQuickWarp,useQuickWarp);
             }
             warpToUT = UT;
         }
@@ -133,7 +160,7 @@ namespace MuMech
             {
                 DecreaseRegularWarp(instantOnDecrease);
             }
-            else if (TimeWarp.CurrentRateIndex + 1 < TimeWarp.fetch.warpRates.Count() && TimeWarp.fetch.warpRates[TimeWarp.CurrentRateIndex + 1] <= maxRate)
+            else if (TimeWarp.CurrentRateIndex + 1 < TimeWarp.fetch.warpRates.Length && TimeWarp.fetch.warpRates[TimeWarp.CurrentRateIndex + 1] <= maxRate)
             {
                 IncreaseRegularWarp(instantOnIncrease);
             }
@@ -148,7 +175,7 @@ namespace MuMech
             {
                 DecreasePhysicsWarp(instantOnDecrease);
             }
-            else if (TimeWarp.CurrentRateIndex + 1 < TimeWarp.fetch.physicsWarpRates.Count() && TimeWarp.fetch.physicsWarpRates[TimeWarp.CurrentRateIndex + 1] <= maxRate)
+            else if (TimeWarp.CurrentRateIndex + 1 < TimeWarp.fetch.physicsWarpRates.Length && TimeWarp.fetch.physicsWarpRates[TimeWarp.CurrentRateIndex + 1] <= maxRate)
             {
                 IncreasePhysicsWarp(instantOnIncrease);
             }

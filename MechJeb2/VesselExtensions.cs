@@ -42,7 +42,7 @@ namespace MuMech
                 for (int m = 0; m < count; m++)
                 {
                     T mod = part.Modules[m] as T;
-                    
+
                     if (mod != null)
                         list.Add(mod);
                 }
@@ -61,7 +61,7 @@ namespace MuMech
                 lastFixedTime = Time.fixedTime;
             }
             Guid vesselKey = vessel == null ? Guid.Empty : vessel.id;
-            
+
             MechJebCore mj;
             if (!masterMechJeb.TryGetValue(vesselKey, out mj))
             {
@@ -210,8 +210,20 @@ namespace MuMech
         //Otherwise, returns null
         public static Orbit GetNextPatch(this Vessel vessel, Orbit patch, ManeuverNode ignoreNode = null)
         {
+            if (patch == null)
+            {
+                return null;
+            }
+
             //Determine whether this patch ends in an SOI transition or if it's the final one:
             bool finalPatch = (patch.patchEndTransition == Orbit.PatchTransitionType.FINAL);
+
+
+            if (vessel.patchedConicSolver == null)
+            {
+                vessel.patchedConicSolver = vessel.gameObject.AddComponent<PatchedConicSolver>();
+                vessel.patchedConicSolver.Load(vessel.flightPlanNode);
+            }
 
             //See if any maneuver nodes occur during this patch. If there is one
             //return the patch that follows it
@@ -339,6 +351,31 @@ namespace MuMech
                 return;
             node.attachedGizmo.patchBefore = node.patch;
             node.attachedGizmo.patchAhead = node.nextPatch;
+        }
+
+        public static Vector3d WorldDeltaV(this ManeuverNode node)
+        {
+            return node.patch.Prograde(node.UT) * node.DeltaV.z + node.patch.RadialPlus(node.UT) * node.DeltaV.x + -node.patch.NormalPlus(node.UT) * node.DeltaV.y;
+        }
+
+        // The part loop in VesselState could expose this, but it gets disabled when the RCS action group is disabled.
+        // This method is also useful when the RCS AG is off.
+        public static bool hasEnabledRCSModules(this Vessel vessel)
+        {
+            var rcsModules = vessel.FindPartModulesImplementing<ModuleRCS>();
+
+            for (int m = 0; m < rcsModules.Count; m++)
+            {
+                ModuleRCS rcs = rcsModules[m];
+
+                if (rcs == null)
+                    continue;
+
+                if (rcs.rcsEnabled && rcs.isEnabled && !rcs.isJustForShow)
+                    return true;
+            }
+
+            return false;
         }
     }
 }

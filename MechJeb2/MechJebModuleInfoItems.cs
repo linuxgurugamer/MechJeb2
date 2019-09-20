@@ -4,6 +4,7 @@ using UniLinq;
 using KSP.UI.Screens;
 using Smooth.Pools;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace MuMech
 {
@@ -343,6 +344,12 @@ namespace MuMech
             return vessel.vesselName;
         }
 
+        [ValueInfoItem("Vessel type", InfoItem.Category.Vessel, showInEditor = false)]
+        public string VesselType()
+        {
+            return vessel != null ? vessel.vesselType.displayDescription() : "-";
+        }
+
         [ValueInfoItem("Vessel mass", InfoItem.Category.Vessel, format = "F3", units = "t", showInEditor = true)]
         public double VesselMass()
         {
@@ -605,7 +612,17 @@ namespace MuMech
         {
             if (!core.target.NormalTargetExists) return "N/A";
 
-            Orbit o = vessel.orbit;
+            Orbit o;
+            if (vessel.patchedConicsUnlocked() && vessel.patchedConicSolver.maneuverNodes.Any())
+            {
+                ManeuverNode node = vessel.patchedConicSolver.maneuverNodes.Last();
+                o = node.nextPatch;
+            }
+            else
+            {
+                o = vessel.orbit;
+            }
+
             while (o != null && o.referenceBody != (CelestialBody) vessel.targetObject)
                 o = o.nextPatch;
 
@@ -844,10 +861,11 @@ namespace MuMech
             MechJebModuleStageStats stats = core.GetComputerModule<MechJebModuleStageStats>();
             if (Event.current.type == EventType.Layout)
             {
-                vacStats = stats.vacStats;
-                atmoStats = stats.atmoStats;
                 stats.RequestUpdate(this);
             }
+
+            vacStats = stats.vacStats;
+            atmoStats = stats.atmoStats;
 
             Profiler.EndSample();
 
@@ -1232,7 +1250,7 @@ namespace MuMech
         {
             if (vessel.landedAt != string.Empty)
                 return vessel.landedAt;
-            return ScienceUtil.GetExperimentBiome(mainBody, vessel.latitude, vessel.longitude);
+            return mainBody.GetExperimentBiomeSafe(vessel.latitude, vessel.longitude);
         }
 
         [ValueInfoItem("Current Biome", InfoItem.Category.Misc, showInEditor=false)]
@@ -1251,24 +1269,24 @@ namespace MuMech
                 //ExperimentSituations.SrfLanded
                 case Vessel.Situations.LANDED:
                 case Vessel.Situations.PRELAUNCH:
-                    return mainBody.theName + (biome == "" ? "'s surface" : biome);
+                    return mainBody.displayName + (biome == "" ? "'s surface" : biome);
                 //ExperimentSituations.SrfSplashed
                 case Vessel.Situations.SPLASHED:
-                    return mainBody.theName + (biome == "" ? "'s oceans" : biome);
+                    return mainBody.displayName + (biome == "" ? "'s oceans" : biome);
                 case Vessel.Situations.FLYING:
                     if (vessel.altitude < mainBody.scienceValues.flyingAltitudeThreshold)
                         //ExperimentSituations.FlyingLow
-                        return "Flying over " + mainBody.theName + biome;
+                        return "Flying over " + mainBody.displayName + biome;
                     else
                         //ExperimentSituations.FlyingHigh
-                        return "Upper atmosphere of " + mainBody.theName + biome;
+                        return "Upper atmosphere of " + mainBody.displayName + biome;
                 default:
                     if (vessel.altitude < mainBody.scienceValues.spaceAltitudeThreshold)
                         //ExperimentSituations.InSpaceLow
-                        return "Space just above " + mainBody.theName + biome;
+                        return "Space just above " + mainBody.displayName + biome;
                     else
                         // ExperimentSituations.InSpaceHigh
-                        return "Space high over " + mainBody.theName + biome;
+                        return "Space high over " + mainBody.displayName + biome;
             }
         }
 
@@ -1280,7 +1298,7 @@ namespace MuMech
                 TextEditor te = new TextEditor();
                 string result = "latitude =  " + vesselState.latitude.ToString("F6") + "\nlongitude = " + vesselState.longitude.ToString("F6") +
                                 "\naltitude = " + vessel.altitude.ToString("F2") + "\n";
-                te.content = new GUIContent(result);
+                te.text = result;
                 te.SelectAll();
                 te.Copy();
             }

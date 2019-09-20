@@ -40,9 +40,9 @@ namespace MuMech
         public void Set(ITargetable t)
         {
             target = t;
-            if (vessel != null && vessel.isActiveVessel)
+            if (vessel != null)
             {
-                if (FlightGlobals.fetch != null) FlightGlobals.fetch.SetVesselTarget(target);
+                vessel.targetObject = target;
             }
         }
 
@@ -54,6 +54,7 @@ namespace MuMech
 
             Set(new PositionTarget(String.Format(GetPositionTargetString(), latitude, longitude)));
         }
+
 
         [ValueInfoItem("Target coordinates", InfoItem.Category.Target)]
         public string GetPositionTargetString()
@@ -67,7 +68,7 @@ namespace MuMech
 
         public Vector3d GetPositionTargetPosition()
         {
-            return targetBody.GetWorldSurfacePosition(targetLatitude, targetLongitude, targetBody.TerrainAltitude(targetLatitude, targetLongitude));
+            return targetBody.GetWorldSurfacePosition(targetLatitude, targetLongitude, targetBody.TerrainAltitude(targetLatitude, targetLongitude))-targetBody.position;
         }
 
         public void SetDirectionTarget(string name)
@@ -80,7 +81,7 @@ namespace MuMech
         {
             pickingPositionTarget = true;
             MapView.EnterMapView();
-            string message = "Click to select a target on " + mainBody.theName + "'s surface.\n(Leave map view to cancel.)";
+            string message = "Click to select a target on " + mainBody.displayName + "'s surface.\n(Leave map view to cancel.)";
             ScreenMessages.PostScreenMessage(message, 3.0f, ScreenMessageStyle.UPPER_CENTER);
         }
 
@@ -192,15 +193,15 @@ namespace MuMech
             if (!wasActiveVessel && vessel.isActiveVessel)
             {
                 if (target != null && target.GetVessel() != null)
-                {                    
-                    FlightGlobals.fetch.SetVesselTarget(target);
+                {
+                    vessel.targetObject = target;
                 }
             }
 
             //notice when the user switches targets
-            if (vessel.isActiveVessel && target != FlightGlobals.fetch.VesselTarget)
+            if (target != vessel.targetObject)
             {
-                target = FlightGlobals.fetch.VesselTarget;
+                target = vessel.targetObject;
                 if (target is Vessel && ((Vessel)target).LandedOrSplashed && (((Vessel)target).mainBody == vessel.mainBody))
                 {
                     targetBody = vessel.mainBody;
@@ -259,7 +260,9 @@ namespace MuMech
                     if (mouseCoords != null)
                     {
                         GLUtils.DrawGroundMarker(mainBody, mouseCoords.latitude, mouseCoords.longitude, new Color(1.0f, 0.56f, 0.0f), true, 60);
-                        GUI.Label(new Rect(Input.mousePosition.x + 15, Screen.height - Input.mousePosition.y, 200, 50), mouseCoords.ToStringDecimal() + "\n" + ScienceUtil.GetExperimentBiome(mainBody, mouseCoords.latitude, mouseCoords.longitude));
+
+                        string biome = mainBody.GetExperimentBiomeSafe(mouseCoords.latitude, mouseCoords.longitude);
+                        GUI.Label(new Rect(Input.mousePosition.x + 15, Screen.height - Input.mousePosition.y, 200, 50), mouseCoords.ToStringDecimal() + "\n" + biome);
 
                         if (Input.GetMouseButtonDown(0))
                         {
