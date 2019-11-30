@@ -65,7 +65,23 @@ namespace MuMech
             // Even if you don't lock down functionality, you should return true if your users
             // can expect a future update to be available.
             //
-            return Versioning.version_major == 1 && Versioning.version_minor == 2;
+
+            if (Versioning.version_major == 1 && Versioning.version_minor >= 8)
+            {
+                foreach (AssemblyLoader.LoadedAssembly assembly in AssemblyLoader.loadedAssemblies)
+                {
+                    AssemblyName assemblyName = assembly.assembly.GetName();
+                    if (assemblyName.Name == "Firespitter" && assemblyName.Version <= Version.Parse("7.3.7175.38653"))
+                    {
+                        PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 
+                            "MJBobNeedsToFixStuff", "Outdated Firespitter version detected",
+                            "You are using a version of Firespitter that does not run properly on KSP 1.8+\nThis version may prevent the game from loading properly and may create problems for other mods",
+                            "OK", true, HighLogic.UISkin);
+                    }
+                }
+            }
+            
+            return Versioning.version_major == 1 && Versioning.version_minor == 8;
 
             /*-----------------------------------------------*\
             | IMPLEMENTERS SHOULD NOT EDIT BEYOND THIS POINT! |
@@ -187,7 +203,7 @@ namespace MuMech
 
             if ((incompatible.Length > 0) || (incompatibleUnity.Length > 0))
             {
-                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), "Incompatible Mods Detected", message, "OK", true, HighLogic.UISkin);
+                PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), "CompatibilityChecker", "Incompatible Mods Detected", message, "OK", true, HighLogic.UISkin);
             }
         }
 

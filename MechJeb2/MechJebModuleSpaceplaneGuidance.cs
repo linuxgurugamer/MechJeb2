@@ -1,12 +1,14 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using KSP.Localization;
 
 namespace MuMech
 {
     public class MechJebModuleSpaceplaneGuidance : DisplayModule
     {
-        MechJebModuleSpaceplaneAutopilot autopilot;
+        MechJebModuleSpaceplaneAutopilot autoland;
 
         protected bool _showLandingTarget = false;
 
@@ -36,35 +38,36 @@ namespace MuMech
 
             if (availableRunways.Any())
             {
-                GUILayout.Label("Landing", s);
+                GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label1"), s);//Landing
 
                 runwayIndex = GuiUtils.ComboBox.Box(runwayIndex, availableRunways.Select(p => p.name).ToArray(), this);
-                autopilot.runway = availableRunways[runwayIndex];
+                autoland.runway = availableRunways[runwayIndex];
 
-                GUILayout.Label("Distance to runway: " + MuUtils.ToSI(Vector3d.Distance(vesselState.CoM, autopilot.runway.Start(vesselState.CoM)), 0) + "m");
+                GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label2") + MuUtils.ToSI(Vector3d.Distance(vesselState.CoM, autoland.runway.Start()), 0) + "m");//Distance to runway: 
 
-                showLandingTarget = GUILayout.Toggle(showLandingTarget, "Show landing navball guidance");
+                showLandingTarget = GUILayout.Toggle(showLandingTarget, Localizer.Format("#MechJeb_ApproAndLand_label3"));//Show landing navball guidance
 
-                if (GUILayout.Button("Autoland")) autopilot.Autoland(this);
-                if (autopilot.enabled && autopilot.mode == MechJebModuleSpaceplaneAutopilot.Mode.AUTOLAND
-                    && GUILayout.Button("Abort")) autopilot.AutopilotOff();
+                if (GUILayout.Button(Localizer.Format("#MechJeb_ApproAndLan_button1"))) autoland.Autoland(this);//Autoland
+                if (autoland.enabled && GUILayout.Button(Localizer.Format("#MechJeb_ApproAndLan_button2")))//Abort
+                    autoland.AutopilotOff();
+                
+                GuiUtils.SimpleTextBox(Localizer.Format("#MechJeb_ApproAndLand_label3"), autoland.glideslope);//Autoland glideslope:
+                GuiUtils.SimpleTextBox(Localizer.Format("#MechJeb_ApproAndLand_label4"), autoland.approachSpeed);//Approach speed:
+                GuiUtils.SimpleTextBox(Localizer.Format("#MechJeb_ApproAndLand_label5"), autoland.touchdownSpeed);//Touchdown speed:
+                autoland.bEngageReverseIfAvailable = GUILayout.Toggle(autoland.bEngageReverseIfAvailable, Localizer.Format("#MechJeb_ApproAndLand_label6"));//Reverse thrust upon touchdown
+                autoland.bBreakAsSoonAsLanded = GUILayout.Toggle(autoland.bBreakAsSoonAsLanded, Localizer.Format("#MechJeb_ApproAndLand_label7"));//Brake as soon as landed
 
-                GuiUtils.SimpleTextBox("Autoland glideslope:", autopilot.glideslope, "º");
+                if (autoland.enabled)
+                {
+                    GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label8") + autoland.AutolandApproachStateToHumanReadableDescription());//State:
+                    GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label9", Math.Round(autoland.GetAutolandLateralDistanceToNextWaypoint(), 0)));//Distance to waypoint: {0}m
+                    //GUILayout.Label(string.Format("Distance to waypoint: {0} m", Math.Round(autoland.GetAutolandLateralDistanceToNextWaypoint(), 0)));
+                    GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label10",Math.Round(autoland.Autopilot.SpeedTarget, 1)));//Target speed: {0} m/s
+                    GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label11", Math.Round(autoland.GetAutolandTargetAltitude(autoland.GetAutolandTargetVector()), 0)));//Target altitude: {0} m
+                    GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label12", Math.Round(autoland.Autopilot.VertSpeedTarget, 1)));//Target vertical speed: {0} m/s
+                    GUILayout.Label(Localizer.Format("#MechJeb_ApproAndLand_label13", Math.Round(autoland.Autopilot.HeadingTarget, 0)));//Target heading: {0}º
+                }
             }
-
-            GUILayout.Label("Hold", s);
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Initiate hold:")) autopilot.HoldHeadingAndAltitude(this);
-            GUILayout.Label("Heading:");
-            autopilot.targetHeading.text = GUILayout.TextField(autopilot.targetHeading.text, GUILayout.Width(40));
-            GUILayout.Label("º Altitude:");
-            autopilot.targetAltitude.text = GUILayout.TextField(autopilot.targetAltitude.text, GUILayout.Width(40));
-            GUILayout.Label("m");
-            GUILayout.EndHorizontal();
-
-            if (autopilot.enabled && autopilot.mode == MechJebModuleSpaceplaneAutopilot.Mode.HOLD
-                && GUILayout.Button("Abort")) autopilot.AutopilotOff();
 
             GUILayout.EndVertical();
 
@@ -78,12 +81,12 @@ namespace MuMech
 
         public override void OnFixedUpdate()
         {
-            if (showLandingTarget && autopilot != null)
+            if (showLandingTarget && autoland != null)
             {
                 if (!(core.target.Target is DirectionTarget && core.target.Name == "ILS Guidance")) showLandingTarget = false;
                 else
                 {
-                    core.target.UpdateDirectionTarget(autopilot.ILSAimDirection());
+                    core.target.UpdateDirectionTarget(autoland.GetAutolandTargetVector());
                 }
             }
         }
@@ -92,14 +95,14 @@ namespace MuMech
 
         public override void OnStart(PartModule.StartState state)
         {
-            autopilot = core.GetComputerModule<MechJebModuleSpaceplaneAutopilot>();
+            autoland = core.GetComputerModule<MechJebModuleSpaceplaneAutopilot>();
         }
 
         public MechJebModuleSpaceplaneGuidance(MechJebCore core) : base(core) { }
 
         public override string GetName()
         {
-            return "Spaceplane Guidance";
+            return Localizer.Format("#MechJeb_ApproAndLand_title");//Aircraft Approach & Autoland
         }
     }
 }

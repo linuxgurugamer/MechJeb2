@@ -54,7 +54,104 @@ namespace MuMech
             return false;
         }
 
-        public static bool IsUnfiredDecoupler(this Part p)
+        // for a single EngineModule, get thrust + isp + massFlowRate
+        public static void EngineValuesAtConditions(this ModuleEngines e, double throttle, double atmPressure, double atmDensity, double machNumber, out Vector3d thrust, out double isp, out double massFlowRate, bool cosLoss = true)
+        {
+            isp = e.ISPAtConditions(throttle, atmPressure, atmDensity, machNumber);
+            double flowMultiplier = e.FlowMultiplierAtConditions(atmDensity, machNumber);
+            massFlowRate = e.FlowRateAtConditions(throttle, flowMultiplier);
+            thrust = e.ThrustAtConditions(massFlowRate, isp, cosLoss);
+            //Debug.Log("thrust = " + thrust + " isp = " + isp + " massFlowRate = " + massFlowRate);
+        }
+
+        public static double FlowRateAtConditions(this ModuleEngines e, double throttle, double flowMultiplier)
+        {
+            double minFuelFlow = e.minFuelFlow;
+            double maxFuelFlow = e.maxFuelFlow;
+
+            // Some brilliant engine mod seems to consider that FuelFlow is not something they should properly initialize
+            if (minFuelFlow == 0 && e.minThrust > 0)
+            {
+                minFuelFlow = e.minThrust / (e.atmosphereCurve.Evaluate(0f) * e.g);
+            }
+
+            if (maxFuelFlow == 0 && e.maxThrust > 0)
+            {
+                maxFuelFlow = e.maxThrust / (e.atmosphereCurve.Evaluate(0f) * e.g);
+            }
+
+            return Mathf.Lerp(e.minFuelFlow, e.maxFuelFlow, (float)throttle * 0.01f * e.thrustPercentage) * flowMultiplier;
+        }
+
+        // for a single EngineModule, get its thrust vector (use EngineModuleFlowMultiplier and EngineModuleISP below)
+        public static Vector3d ThrustAtConditions(this ModuleEngines e, double massFlowRate, double isp, bool cosLoss = true)
+        {
+            if (massFlowRate <= 0)
+                return Vector3d.zero;
+
+            Vector3d thrustVector = Vector3d.zero;
+
+            for (int i = 0; i < e.thrustTransforms.Count; i++)
+                thrustVector -= e.thrustTransforms[i].forward * e.thrustTransformMultipliers[i];
+
+            if (cosLoss)
+            {
+                Vector3d fwd = HighLogic.LoadedScene == GameScenes.EDITOR ? EditorLogic.VesselRotation * Vector3d.up : e.part.vessel.GetTransform().up;
+                thrustVector = Vector3.Dot(fwd, thrustVector) * thrustVector.normalized;
+            }
+
+            return thrustVector * massFlowRate * e.g * e.multIsp * isp;
+        }
+
+        // for a single EngineModule, determine its flowMultiplier, subject to atmDensity + machNumber
+        public static double FlowMultiplierAtConditions(this ModuleEngines e, double atmDensity, double machNumber)
+        {
+            double flowMultiplier = 1;
+
+            if (e.atmChangeFlow)
+            {
+                if (e.useAtmCurve)
+                    flowMultiplier = e.atmCurve.Evaluate((float)atmDensity * 40 / 49);
+                else
+                    flowMultiplier = atmDensity * 40 / 49;
+            }
+
+            double ratio = 1.0f;  // FIXME: should be sum of propellant.totalAmount / sum of propellant.totalCapacity?
+                                  // (but the FuelFlowSimulation that uses this takes very large timesteps anyway)
+            if (e.useThrustCurve)
+                flowMultiplier *= e.thrustCurve.Evaluate((float)ratio);
+
+            if (e.useVelCurve)
+                flowMultiplier *= e.velCurve.Evaluate((float)machNumber);
+
+            if (flowMultiplier > e.flowMultCap)
+            {
+                double excess = flowMultiplier - e.flowMultCap;
+                flowMultiplier = e.flowMultCap + excess / (e.flowMultCapSharpness + excess / e.flowMultCap);
+            }
+
+            // some engines have e.CLAMP set to float.MaxValue so we have to have the e.CLAMP < 1 sanity check here
+            if (flowMultiplier < e.CLAMP && e.CLAMP < 1)
+                flowMultiplier = e.CLAMP;
+
+            return flowMultiplier;
+        }
+
+        // for a single EngineModule, evaluate its ISP, subject to all the different possible curves
+        public static double ISPAtConditions(this ModuleEngines e, double throttle, double atmPressure, double atmDensity, double machNumber)
+        {
+            double isp = 0;
+            isp = e.atmosphereCurve.Evaluate((float)atmPressure);
+            if (e.useThrottleIspCurve)
+                isp *= Mathf.Lerp(1f, e.throttleIspCurve.Evaluate((float)throttle), e.throttleIspCurveAtmStrength.Evaluate((float)atmPressure));
+            if (e.useAtmCurveIsp)
+                isp *= e.atmCurveIsp.Evaluate((float)atmDensity * 40 / 49);
+            if (e.useVelCurveIsp)
+                isp *= e.velCurveIsp.Evaluate((float)machNumber);
+            return isp;
+        }
+
+        public static bool IsUnfiredDecoupler(this Part p, out Part decoupledPart)
         {
             for (int i = 0; i < p.Modules.Count; i++)
             {
@@ -62,30 +159,54 @@ namespace MuMech
                 ModuleDecouple mDecouple = m as ModuleDecouple;
                 if (mDecouple != null)
                 {
-                    if (!mDecouple.isDecoupled && mDecouple.stagingEnabled && p.stagingOn) return true;
+                    if (!mDecouple.isDecoupled && mDecouple.stagingEnabled && p.stagingOn)
+                    {
+                        decoupledPart = mDecouple.ExplosiveNode.attachedPart;
+                        if (decoupledPart == p.parent)
+                            decoupledPart = p;
+                        return true;
+                    }
                     break;
                 }
 
                 ModuleAnchoredDecoupler mAnchoredDecoupler = m as ModuleAnchoredDecoupler;
                 if (mAnchoredDecoupler != null)
                 {
-                    if (!mAnchoredDecoupler.isDecoupled && mAnchoredDecoupler.stagingEnabled && p.stagingOn) return true;
+                    if (!mAnchoredDecoupler.isDecoupled && mAnchoredDecoupler.stagingEnabled && p.stagingOn)
+                    {
+                        decoupledPart = mAnchoredDecoupler.ExplosiveNode.attachedPart;
+                        if (decoupledPart == p.parent)
+                            decoupledPart = p;
+                        return true;
+                    }
                     break;
                 }
 
                 ModuleDockingNode mDockingNode = m as ModuleDockingNode;
                 if (mDockingNode != null)
                 {
-                    if (mDockingNode.staged && mDockingNode.stagingEnabled  && p.stagingOn) return true;
+                    if (mDockingNode.staged && mDockingNode.stagingEnabled && p.stagingOn)
+                    {
+                        decoupledPart = mDockingNode.referenceNode.attachedPart;
+                        if (decoupledPart == p.parent)
+                            decoupledPart = p;
+                        return true;
+                    }
                     break;
                 }
 
                 if (VesselState.isLoadedProceduralFairing && m.moduleName == "ProceduralFairingDecoupler")
                 {
-                    if (!m.Fields["decoupled"].GetValue<bool>(m) && p.stagingOn) return true;
+                    if (!m.Fields["decoupled"].GetValue<bool>(m) && p.stagingOn)
+                    {
+                        // ProceduralFairingDecoupler always decouple from their parents
+                        decoupledPart = p;
+                        return true;
+                    }
                     break;
                 }
             }
+            decoupledPart = null;
             return false;
         }
 
@@ -95,7 +216,7 @@ namespace MuMech
         public static bool IsSepratron(this Part p)
         {
             return p.ActivatesEvenIfDisconnected
-                && p.IsEngine()
+                && p.IsThrottleLockedEngine()
                 && p.IsDecoupledInStage(p.inverseStage)
                 && p.isControlSource == Vessel.ControlLevel.NONE;
         }
@@ -106,6 +227,16 @@ namespace MuMech
             {
                 PartModule m = p.Modules[i];
                 if (m is ModuleEngines) return true;
+            }
+            return false;
+        }
+
+        public static bool IsThrottleLockedEngine(this Part p)
+        {
+            for (int i = 0; i < p.Modules.Count; i++)
+            {
+                PartModule m = p.Modules[i];
+                if (m is ModuleEngines engines && engines.throttleLocked) return true;
             }
             return false;
         }
@@ -131,8 +262,10 @@ namespace MuMech
 
         public static bool IsDecoupledInStage(this Part p, int stage)
         {
-            if ((p.IsUnfiredDecoupler() || p.IsLaunchClamp()) && p.inverseStage == stage) return true;
+            Part decoupledPart;
+            if (((p.IsUnfiredDecoupler(out decoupledPart) && p == decoupledPart) || p.IsLaunchClamp()) && p.inverseStage == stage) return true;
             if (p.parent == null) return false;
+            if (p.parent.IsUnfiredDecoupler(out decoupledPart) && p == decoupledPart && p.parent.inverseStage == stage) return true;
             return p.parent.IsDecoupledInStage(stage);
         }
 

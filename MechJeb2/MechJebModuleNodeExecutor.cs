@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 
 namespace MuMech
 {
@@ -19,9 +18,9 @@ namespace MuMech
         [ValueInfoItem("Node Burn Length", InfoItem.Category.Thrust)]
         public string NextNodeBurnTime()
         {
-            if (!vessel.patchedConicsUnlocked() || !vessel.patchedConicSolver.maneuverNodes.Any())
+            if (!vessel.patchedConicsUnlocked() || vessel.patchedConicSolver.maneuverNodes.Count == 0)
                 return "-";
-            ManeuverNode node = vessel.patchedConicSolver.maneuverNodes.First();
+            ManeuverNode node = vessel.patchedConicSolver.maneuverNodes[0];
             double dV = node.GetBurnVector(orbit).magnitude;
             double halfBurnTIme;
             return GuiUtils.TimeToDHMS(BurnTime(dV, out halfBurnTIme));
@@ -30,12 +29,12 @@ namespace MuMech
         [ValueInfoItem("Node Burn Countdown", InfoItem.Category.Thrust)]
         public string NextNodeCountdown()
         {
-            if (!vessel.patchedConicsUnlocked() || !vessel.patchedConicSolver.maneuverNodes.Any())
+            if (!vessel.patchedConicsUnlocked() || vessel.patchedConicSolver.maneuverNodes.Count == 0)
                 return "-";
-            ManeuverNode node = vessel.patchedConicSolver.maneuverNodes.First();
+            ManeuverNode node = vessel.patchedConicSolver.maneuverNodes[0];
             double dV = node.GetBurnVector(orbit).magnitude;
             double halfBurnTIme;
-            double burnTIme = BurnTime(dV, out halfBurnTIme);
+            BurnTime(dV, out halfBurnTIme);
             return GuiUtils.TimeToDHMS(node.UT - halfBurnTIme - vesselState.time);
         }
 
@@ -82,14 +81,14 @@ namespace MuMech
 
         public override void OnFixedUpdate()
         {
-            if (!vessel.patchedConicsUnlocked() || !vessel.patchedConicSolver.maneuverNodes.Any())
+            if (!vessel.patchedConicsUnlocked() || vessel.patchedConicSolver.maneuverNodes.Count == 0)
             {
                 Abort();
                 return;
             }
 
             //check if we've finished a node:
-            ManeuverNode node = vessel.patchedConicSolver.maneuverNodes.First();
+            ManeuverNode node = vessel.patchedConicSolver.maneuverNodes[0];
             double dVLeft = node.GetBurnVector(orbit).magnitude;
 
             if (dVLeft < tolerance && core.attitude.attitudeAngleFromTarget() > 5)
@@ -105,14 +104,14 @@ namespace MuMech
                 }
                 else if (mode == Mode.ALL_NODES)
                 {
-                    if (!vessel.patchedConicSolver.maneuverNodes.Any())
+                    if (vessel.patchedConicSolver.maneuverNodes.Count == 0)
                     {
                         Abort();
                         return;
                     }
                     else
                     {
-                        node = vessel.patchedConicSolver.maneuverNodes.First();
+                        node = vessel.patchedConicSolver.maneuverNodes[0];
                     }
                 }
             }
@@ -121,11 +120,11 @@ namespace MuMech
             core.attitude.attitudeTo(Vector3d.forward, AttitudeReference.MANEUVER_NODE, this);
 
             double halfBurnTime;
-            double burnTime = BurnTime(dVLeft, out halfBurnTime);
+            BurnTime(dVLeft, out halfBurnTime);
 
             double timeToNode = node.UT - vesselState.time;
-
-            if (halfBurnTime > 0 && timeToNode < halfBurnTime)
+            //(!double.IsInfinity(num) && num > 0.0 && num2 < num) || num2 <= 0.0
+            if ((!double.IsInfinity(halfBurnTime) && halfBurnTime > 0 && timeToNode < halfBurnTime) || timeToNode < 0)
             {
                 burnTriggered = true;
                 if (!MuUtils.PhysicsRunning()) core.warp.MinimumWarp();
@@ -134,7 +133,7 @@ namespace MuMech
             //autowarp, but only if we're already aligned with the node
             if (autowarp && !burnTriggered)
             {
-                if (core.attitude.attitudeAngleFromTarget() < 1 || (core.attitude.attitudeAngleFromTarget() < 10 && !MuUtils.PhysicsRunning()))
+                if ((core.attitude.attitudeAngleFromTarget() < 1 && core.vessel.angularVelocity.magnitude < 0.001) || (core.attitude.attitudeAngleFromTarget() < 10 && !MuUtils.PhysicsRunning()))
                 {
                     core.warp.WarpToUT(node.UT - halfBurnTime - leadTime);
                 }
@@ -223,7 +222,7 @@ namespace MuMech
                 // TODO: Be smarter about throttle limits on future stages.
                 if (i == stats.vacStats.Length - 1)
                 {
-                    stageAvgAccel *= vesselState.throttleLimit;
+                        stageAvgAccel *= (double)this.vesselState.throttleFixedLimit;
                 }
 
                 halfBurnTime += Math.Min(halfDvLeft, stageBurnDv) / stageAvgAccel;
@@ -231,6 +230,17 @@ namespace MuMech
 
                 burnTime += stageBurnDv / stageAvgAccel;
 
+            }
+
+            /* infinity means acceleration is zero for some reason, which is dangerous nonsense, so use zero instead */
+            if (double.IsInfinity(halfBurnTime))
+            {
+                halfBurnTime = 0.0;
+            }
+
+            if (double.IsInfinity(burnTime))
+            {
+                burnTime = 0.0;
             }
 
             return burnTime;

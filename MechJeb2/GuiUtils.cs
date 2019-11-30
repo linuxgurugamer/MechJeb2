@@ -10,16 +10,16 @@ namespace MuMech
         string text { get; set; }
     }
 
-    //An EditableDouble stores a double value and a text string. The user can edit the string. 
-    //Whenever the text is edited, it is parsed and the parsed value is stored in val. As a 
-    //convenience, a multiplier can be specified so that the stored value is actually 
+    //An EditableDouble stores a double value and a text string. The user can edit the string.
+    //Whenever the text is edited, it is parsed and the parsed value is stored in val. As a
+    //convenience, a multiplier can be specified so that the stored value is actually
     //(multiplier * parsed value). If the parsing fails, the parsed flag is set to false and
     //the stored value is unchanged. There are implicit conversions between EditableDouble and
     //double so that if you are not doing text input you can treat an EditableDouble like a double.
     public class EditableDoubleMult : IEditable
     {
         [Persistent]
-        public double _val;
+        protected double _val;
         public virtual double val
         {
             get { return _val; }
@@ -33,7 +33,7 @@ namespace MuMech
 
         public bool parsed;
         [Persistent]
-        public string _text;
+        protected string _text;
         public virtual string text
         {
             get { return _text; }
@@ -402,7 +402,7 @@ namespace MuMech
             try
             {
                 string[] units = { "y", "d", "h", "m", "s" };
-                long[] intervals = { DaysPerYear * HoursPerDay * 3600, HoursPerDay * 3600, 3600, 60, 1 };
+                long[] intervals = { KSPUtil.dateTimeFormatter.Year, KSPUtil.dateTimeFormatter.Day, 3600, 60, 1 };
 
                 if (seconds < 0)
                 {
@@ -438,7 +438,7 @@ namespace MuMech
         public static bool TryParseDHMS(string s, out double seconds)
         {
             string[] units = { "y", "d", "h", "m", "s" };
-            int[] intervals = { DaysPerYear * HoursPerDay * 3600, HoursPerDay * 3600, 3600, 60, 1 };
+            int[] intervals = { KSPUtil.dateTimeFormatter.Year, KSPUtil.dateTimeFormatter.Day, 3600, 60, 1 };
 
             s = s.Trim(' ');
             bool minus = (s.StartsWith("-"));
@@ -463,7 +463,7 @@ namespace MuMech
 
             return parsedSomething;
         }
-        
+
         public static double ArcDistance(Vector3 From, Vector3 To) {
             double a = (FlightGlobals.ActiveVessel.mainBody.transform.position - From).magnitude;
             double b = (FlightGlobals.ActiveVessel.mainBody.transform.position - To).magnitude;
@@ -471,7 +471,7 @@ namespace MuMech
             double ang = Math.Acos(((a * a + b * b) - c * c) / (double)(2f * a * b));
             return ang * FlightGlobals.ActiveVessel.mainBody.Radius;
         }
-        
+
         public static double FromToETA(Vector3 From, Vector3 To, double Speed = 0) {
             return ArcDistance(From, To) / (Speed > 0 ? Speed : FlightGlobals.ActiveVessel.horizontalSrfSpeed);
         }
@@ -481,7 +481,7 @@ namespace MuMech
             //try to check if the mouse is over any active DisplayModule
             foreach (DisplayModule m in core.GetComputerModules<DisplayModule>())
             {
-                if (m.enabled && m.showInCurrentScene && !m.isOverlay
+                if (m.enabled && m.showInCurrentScene && !m.IsOverlay
                     && m.windowPos.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y) / GuiUtils.scale))
                 {
                     return true;
@@ -561,23 +561,9 @@ namespace MuMech
 
             static ComboBox()
             {
-                Texture2D background = new Texture2D(16, 16, TextureFormat.RGBA32, false);
-                background.wrapMode = TextureWrapMode.Clamp;
-
-                for (int x = 0; x < background.width; x++)
-                    for (int y = 0; y < background.height; y++)
-                    {
-                        if (x == 0 || x == background.width-1 || y == 0 || y == background.height-1)
-                            background.SetPixel(x, y, new Color(0, 0, 0, 1));
-                        else
-                            background.SetPixel(x, y, new Color(0.05f, 0.05f, 0.05f, 0.95f));
-                    }
-
-                background.Apply();
-
                 style = new GUIStyle(GUI.skin.window);
-                style.normal.background = background;
-                style.onNormal.background = background;
+                style.normal.background = null;
+                style.onNormal.background = null;
                 style.border.top = style.border.bottom;
                 style.padding.top = style.padding.bottom;
             }
@@ -586,6 +572,12 @@ namespace MuMech
             {
                 if (popupOwner == null || rect.height == 0 || ! popupActive)
                     return;
+
+                if (style.normal.background == null)
+                {
+                    style.normal.background = MechJebBundlesManager.comboBoxBackground;
+                    style.onNormal.background = MechJebBundlesManager.comboBoxBackground;
+                }
 
                 // Make sure the rectangle is fully on screen
                 rect.x = Math.Max(0, Math.Min(rect.x, scaledScreenWidth - rect.width));
@@ -605,9 +597,6 @@ namespace MuMech
 
             public static int Box(int selectedItem, string[] entries, object caller, bool expandWidth = true)
             {
-                if (dontUseDropDownMenu)
-                    return ArrowSelector(selectedItem, entries.Length, entries[selectedItem], expandWidth);
-
                 // Trivial cases (0-1 items)
                 if (entries.Length == 0)
                     return 0;
@@ -616,6 +605,12 @@ namespace MuMech
                     GUILayout.Label(entries[0]);
                     return 0;
                 }
+
+                if (selectedItem >= entries.Length)
+                    selectedItem = entries.Length - 1;
+
+                if (dontUseDropDownMenu)
+                    return ArrowSelector(selectedItem, entries.Length, entries[selectedItem], expandWidth);
 
                 // A choice has been made, update the return value
                 if (popupOwner == caller && ! ComboBox.popupActive)
@@ -726,7 +721,7 @@ namespace MuMech
                 }
             }
             displayPicker.Apply();
-            
+
             float v = 0.0F;
             float diff = 1.0f / textureHeight;
             saturationTexture = new Texture2D(20, textureHeight);
@@ -746,7 +741,7 @@ namespace MuMech
         {
             if (!displayPicker)
                 Init();
-            
+
             GUI.Box(new Rect(positionLeft - 3, positionTop - 3, textureWidth + 90, textureHeight + 30), "");
 
             if (GUI.RepeatButton(new Rect(positionLeft, positionTop, textureWidth, textureHeight), displayPicker))
@@ -765,7 +760,7 @@ namespace MuMech
             alphaSlider = GUI.VerticalSlider(new Rect(positionLeft + textureWidth + 3 + 10 + 20 + 10, positionTop, 10, textureHeight), alphaSlider, 1, 0);
             setColor.a = alphaSlider;
             GUI.Box(new Rect(positionLeft + textureWidth + 20 + 10 + 20 + 10, positionTop, 20, textureHeight), saturationTexture);
-            
+
         }
 
     }
@@ -773,12 +768,12 @@ namespace MuMech
     {
         private static int textureWidth = 240;
         private static int textureHeight = 10;
-        
+
         private static Texture2D rTexture;
         private static Texture2D gTexture;
         private static Texture2D bTexture;
         private static Texture2D aTexture;
-        
+
         private static void Init()
         {
             rTexture = new Texture2D(textureWidth, 1);
@@ -797,7 +792,7 @@ namespace MuMech
             gTexture.Apply();
             bTexture.Apply();
             aTexture.Apply();
-            
+
             rTexture.wrapMode = TextureWrapMode.Repeat;
             gTexture.wrapMode = TextureWrapMode.Repeat;
             bTexture.wrapMode = TextureWrapMode.Repeat;

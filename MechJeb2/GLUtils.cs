@@ -12,7 +12,7 @@ namespace MuMech
         {
             get
             {
-                if (_material == null) _material = new Material(Shader.Find("Particles/Additive"));
+                if (_material == null) _material = new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
                 return _material;
             }
         }
@@ -76,7 +76,7 @@ namespace MuMech
             GL.End();
             GL.PopMatrix();
         }
-        
+
         public static void GLVertex(Vector3d worldPosition, bool map = false)
         {
             Vector3 screenPoint = map ? PlanetariumCamera.Camera.WorldToViewportPoint(ScaledSpace.LocalToScaledSpace(worldPosition)) : FlightCamera.fetch.mainCamera.WorldToViewportPoint(worldPosition);
@@ -133,7 +133,7 @@ namespace MuMech
             Vector3d camPos = map ? ScaledSpace.ScaledToLocalSpace(PlanetariumCamera.Camera.transform.position) : (Vector3d)FlightCamera.fetch.mainCamera.transform.position;
 
             int step = (dashed ? 2 : 1);
-            for (int i = 0; i < points.Count() - 1; i += step)
+            for (int i = 0; i < points.Count - 1; i += step)
             {
                 if (!IsOccluded(points[i], mainBody, camPos) && !IsOccluded(points[i + 1], mainBody, camPos))
                 {
@@ -143,7 +143,7 @@ namespace MuMech
             GL.End();
             GL.PopMatrix();
         }
-        
+
         public static void DrawBoundingBox(CelestialBody mainBody, Vessel vessel, MechJebModuleDockingAutopilot.Box3d box, Color c )
         {
             //Vector3d origin = vessel.GetWorldPos3D() - vessel.GetTransform().rotation * box.center ;
@@ -168,7 +168,7 @@ namespace MuMech
 
             GLVertex(A1);
             GLVertex(A2);
-            
+
             GLVertex(A2);
             GLVertex(A3);
 
@@ -180,7 +180,7 @@ namespace MuMech
 
             GLVertex(B1);
             GLVertex(B2);
-            
+
             GLVertex(B2);
             GLVertex(B3);
 

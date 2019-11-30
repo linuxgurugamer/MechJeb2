@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using KSP.Localization;
 
 namespace MuMech
 {
@@ -12,7 +13,7 @@ namespace MuMech
 		[Persistent(pass = (int)Pass.Type)]
 		private int selectedActionId;
 
-		public MechJebModuleScriptActionActionGroup (MechJebModuleScript scriptModule, MechJebCore core):base(scriptModule, core, NAME)
+		public MechJebModuleScriptActionActionGroup (MechJebModuleScript scriptModule, MechJebCore core, MechJebModuleScriptActionsList actionsList):base(scriptModule, core, actionsList, NAME)
 		{
 			actionGroups.Add("Abord");
 			actionGroups.Add("Brakes");
@@ -34,9 +35,9 @@ namespace MuMech
 			actionGroups.Add("Stage");
 		}
 
-		override public void activateAction(int actionIndex)
+		override public void activateAction()
 		{
-			base.activateAction(actionIndex);
+			base.activateAction();
 			KSPActionGroup selectedGroup = KSPActionGroup.Abort;
 			if (selectedActionId == 0)
 			{
@@ -123,7 +124,7 @@ namespace MuMech
 		{
 			base.preWindowGUI(windowID);
 			base.WindowGUI(windowID);
-			GUILayout.Label ("Toggle action group");
+			GUILayout.Label (Localizer.Format("#MechJeb_Actiongroup_label1"));//"Toggle action group"
 			selectedActionId = GuiUtils.ComboBox.Box(selectedActionId, actionGroups.ToArray(), actionGroups);
 			base.postWindowGUI(windowID);
 		}

@@ -14,20 +14,25 @@ else
 		MANAGED := ${KSPDIR}/KSP_Data/Managed/
 	endif
 	ifeq ($(UNAME_S),Darwin)
-		GMCS ?= mcs
 		ifndef KSPDIR
-			KSPDIR  := ${HOME}/Library/Application Support/Steam/SteamApps/common/Kerbal Space Program
+			KSPDIR  := ${HOME}/Library/Application Support/Steam/steamapps/common/Kerbal Space Program
 		endif
 		ifndef MANAGED
 		MANAGED := ${KSPDIR}/KSP.app/Contents/Resources/Data/Managed/
 		endif
+	endif
+
+	# Check if mcs exists (Mono 2.11+) and fall back to gmcs (before Mono 2.11) for backwards compatibility
+	MCS_PATH := $(shell command -v mcs 2> /dev/null)
+	ifndef MCS_PATH
+		MCS ?= gmcs
 	endif
 endif
 
 MECHJEBFILES := $(shell find MechJeb2 -name "*.cs")
 
 RESGEN2 := resgen2
-GMCS    ?= gmcs
+MCS     ?= mcs
 GIT     := git
 TAR     := tar
 ZIP     := zip
@@ -39,7 +44,7 @@ all: build
 info:
 	@echo "== MechJeb2 Build Information =="
 	@echo "  resgen2: ${RESGEN2}"
-	@echo "  gmcs:    ${GMCS}"
+	@echo "  mcs:     ${MCS}"
 	@echo "  git:     ${GIT}"
 	@echo "  tar:     ${TAR}"
 	@echo "  zip:     ${ZIP}"
@@ -48,11 +53,12 @@ info:
 
 build: build/MechJeb2.dll
 
+
 build/%.dll: ${MECHJEBFILES}
 	mkdir -p build
 	${RESGEN2} -usesourcepath MechJeb2/Properties/Resources.resx build/Resources.resources
-	${GMCS} -t:library -lib:"${MANAGED}" \
-		-r:Assembly-CSharp,Assembly-CSharp-firstpass,UnityEngine,UnityEngine.UI \
+	${MCS} -t:library -lib:"${MANAGED}" \
+		-r:Assembly-CSharp,Assembly-CSharp-firstpass,UnityEngine,UnityEngine.UI,,UnityEngine.CoreModule,UnityEngine.IMGUIModule,UnityEngine.VehiclesModule,UnityEngine.PhysicsModule,UnityEngine.AnimationModule,UnityEngine.TextRenderingModule,UnityEngine.InputLegacyModule,UnityEngine.AssetBundleModule \
 		-out:$@ \
 		${MECHJEBFILES} \
 		-resource:build/Resources.resources,MuMech.Properties.Resources.resources
@@ -61,6 +67,7 @@ package: build ${MECHJEBFILES}
 	mkdir -p package/MechJeb2/Plugins
 	cp -r Parts package/MechJeb2/
 	cp -r Icons package/MechJeb2/
+	cp -r Bundles package/MechJeb2/
 	cp build/MechJeb2.dll package/MechJeb2/Plugins/
 	cp LICENSE.md README.md package/MechJeb2/
 
