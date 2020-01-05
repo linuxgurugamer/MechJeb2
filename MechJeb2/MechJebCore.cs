@@ -10,6 +10,7 @@ using UnityEngine.Profiling;
 using UnityToolbag;
 using Debug = UnityEngine.Debug;
 using File = KSP.IO.File;
+using KSP.Localization;
 
 namespace MuMech
 {
@@ -49,7 +50,7 @@ namespace MuMech
         public MechJebModuleLogicalStageTracking stageTracking;
 
         public VesselState vesselState = new VesselState();
-        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "MechJeb"), UI_Toggle(disabledText = "Disabled", enabledText = "Enabled")]
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "MechJeb"), UI_Toggle(disabledText = "#MechJeb_Disabled", enabledText = "#MechJeb_Enabled")]//DisabledEnabled
         public bool running = true;
         private Vessel controlledVessel; //keep track of which vessel we've added our onFlyByWire callback to
         public string version = "";
@@ -98,62 +99,62 @@ namespace MuMech
             get { return showGui; }
         }
 
-        [KSPAction("Orbit Prograde")]
+        [KSPAction("#MechJeb_OrbitPrograde")]//Orbit Prograde
         public void OnOrbitProgradeAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.PROGRADE);
         }
 
-        [KSPAction("Orbit Retrograde")]
+        [KSPAction("#MechJeb_OrbitRetrograde")]//Orbit Retrograde
         public void OnOrbitRetrogradeAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.RETROGRADE);
         }
 
-        [KSPAction("Orbit Normal")]
+        [KSPAction("#MechJeb_OrbitNormal")]//Orbit Normal
         public void OnOrbitNormalAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.NORMAL_PLUS);
         }
 
-        [KSPAction("Orbit Antinormal")]
+        [KSPAction("#MechJeb_OrbitAntinormal")]//Orbit Antinormal
         public void OnOrbitAntinormalAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.NORMAL_MINUS);
         }
 
-        [KSPAction("Orbit Radial In")]
+        [KSPAction("#MechJeb_OrbitRadialIn")]//Orbit Radial In
         public void OnOrbitRadialInAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.RADIAL_MINUS);
         }
 
-        [KSPAction("Orbit Radial Out")]
+        [KSPAction("#MechJeb_OrbitRadialOut")]//Orbit Radial Out
         public void OnOrbitRadialOutAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.RADIAL_PLUS);
         }
 
-        [KSPAction("Orbit Kill Rotation")]
+        [KSPAction("#MechJeb_OrbitKillRotation")]//Orbit Kill Rotation
         public void OnKillRotationAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.KILLROT);
         }
 
-        [KSPAction("Deactivate SmartACS")]
+        [KSPAction("#MechJeb_DeactivateSmartACS")]//Deactivate SmartACS
         public void OnDeactivateSmartASSAction(KSPActionParam param)
         {
             EngageSmartASSOrbitalControl(MechJebModuleSmartASS.Target.OFF);
         }
 
-        [KSPAction("Land somewhere")]
+        [KSPAction("#MechJeb_LandSomewhere")]//Land somewhere
         public void OnLandsomewhereAction(KSPActionParam param)
         {
 
             LandSomewhere();
         }
 
-        [KSPAction("Land at KSC")]
+        [KSPAction("#MechJeb_LandatKSC")]//Land at KSC
         public void OnLandTargetAction(KSPActionParam param)
         {
             LandTarget();
@@ -202,16 +203,16 @@ namespace MuMech
                 }
                 else
                 {
-                    Debug.LogError("MechJeb couldn't find MechJebModuleSmartASS for orbital control via action group.");
+                    Debug.LogError(Localizer.Format("#MechJeb_LogError_msg1"));//"MechJeb couldn't find MechJebModuleSmartASS for orbital control via action group."
                 }
             }
             else
             {
-                Debug.LogError("MechJeb couldn't find the master MechJeb module for the current vessel.");
+                Debug.LogError(Localizer.Format("#MechJeb_LogError_msg0"));//"MechJeb couldn't find the master MechJeb module for the current vessel."
             }
         }
 
-        [KSPAction("PANIC!")]
+        [KSPAction("#MechJeb_PANIC")]//PANIC!
         public void OnPanicAction(KSPActionParam param)
         {
             MechJebCore masterMechJeb = vessel.GetMasterMechJeb();
@@ -225,37 +226,37 @@ namespace MuMech
             }
         }
 
-        [KSPAction("Translatron OFF")]
+        [KSPAction("#MechJeb_TranslatronOFF")]//Translatron OFF
         public void OnTranslatronOffAction(KSPActionParam param)
         {
             EngageTranslatronControl(MechJebModuleThrustController.TMode.OFF);
         }
 
-        [KSPAction("Translatron Keep Vert")]
+        [KSPAction("#MechJeb_TranslatronKeepVert")]//Translatron Keep Vert
         public void OnTranslatronKeepVertAction(KSPActionParam param)
         {
             EngageTranslatronControl(MechJebModuleThrustController.TMode.KEEP_VERTICAL);
         }
 
-        [KSPAction("Translatron Zero speed")]
+        [KSPAction("#MechJeb_TranslatronZerospeed")]//Translatron Zero speed
         public void OnTranslatronZeroSpeedAction(KSPActionParam param)
         {
             SetTranslatronSpeed(0);
         }
 
-        [KSPAction("Translatron +1 speed")]
+        [KSPAction("#MechJeb_TranslatronPlusspeed")]//Translatron +1 speed
         public void OnTranslatronPlusOneSpeedAction(KSPActionParam param)
         {
             SetTranslatronSpeed(1, true);
         }
 
-        [KSPAction("Translatron -1 speed")]
+        [KSPAction("#MechJeb_TranslatronMinusspeed")]//Translatron -1 speed
         public void OnTranslatronMinusOneSpeedAction(KSPActionParam param)
         {
             SetTranslatronSpeed(-1, true);
         }
 
-        [KSPAction("Translatron Toggle H/S")]
+        [KSPAction("#MechJeb_TranslatronToggleHS")]//Translatron Toggle H/S
         public void OnTranslatronToggleHSAction(KSPActionParam param)
         {
             MechJebCore masterMechJeb = vessel.GetMasterMechJeb();
@@ -270,7 +271,7 @@ namespace MuMech
                 }
                 else
                 {
-                    Debug.LogError("MechJeb couldn't find MechJebModuleTranslatron for translatron control via action group.");
+                    Debug.LogError(Localizer.Format("#MechJeb_LogError_msg2"));//"MechJeb couldn't find MechJebModuleTranslatron for translatron control via action group."
                 }
             }
             else
@@ -279,7 +280,7 @@ namespace MuMech
             }
         }
 
-        [KSPAction("Ascent AP toggle")]
+        [KSPAction("#MechJeb_AscentAPtoggle")]//Ascent AP toggle
         public void OnAscentAPToggleAction(KSPActionParam param)
         {
 
@@ -933,6 +934,15 @@ namespace MuMech
                     GetComputerModule<MechJebModuleCustomWindowEditor>().AddDefaultWindows();
                 }
             }
+            catch (ReflectionTypeLoadException ex)
+            {
+                Debug.LogError("MechJeb caught a ReflectionTypeLoadException. Those DLL are not built for this KSP version:");
+                var brokenAssembly = ex.Types.Where(x => x != null).Select(x => x.Assembly).Distinct();
+                foreach (Assembly assembly in brokenAssembly)
+                {
+                    Debug.LogError(assembly.GetName().Name + " " + assembly.GetName().Version + " " + assembly.Location.Remove(0, Path.GetFullPath(KSPUtil.ApplicationRootPath).Length));
+                }
+            }
             catch (Exception e)
             {
                 Debug.LogError("MechJeb caught exception in core OnLoad: " + e);
@@ -1176,7 +1186,7 @@ namespace MuMech
         // VAB/SPH description
         public override string GetInfo()
         {
-            return "Attitude control by MechJeb™";
+            return Localizer.Format("#MechJeb_MechJebInfo_VABSPH");//"Attitude control by MechJeb™"
         }
 
         //Lifted this more or less directly from the Kerbal Engineer source. Thanks cybutek!
